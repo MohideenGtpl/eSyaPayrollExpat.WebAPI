@@ -1,0 +1,21 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace eSyaPayrollExpat.DO
+{
+   public class DO_BankCurrency
+    {
+        public string BankCode { get; set; }
+        public string BankCurrency { get; set; }
+        public bool ActiveStatus { get; set; }
+        public string FormId { get; set; }
+        public int UserID { get; set; }
+        public string TerminalID { get; set; }
+    }
+    public class DO_CurrencyMaster
+    {
+        public string CurrencyCode { get; set; }
+        public string CurrencyName { get; set; }
+    }
+}

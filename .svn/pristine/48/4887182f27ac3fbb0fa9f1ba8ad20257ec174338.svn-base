@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.1267
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "eSyaPayrollExpat.IF", "eSyaPayrollExpat.IF\eSyaPayrollExpat.IF.csproj", "{855646B4-9DB0-4090-AED9-B8F1AB78821E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{855646B4-9DB0-4090-AED9-B8F1AB78821E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{855646B4-9DB0-4090-AED9-B8F1AB78821E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{855646B4-9DB0-4090-AED9-B8F1AB78821E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{855646B4-9DB0-4090-AED9-B8F1AB78821E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {612B57AD-6F92-4DEB-97CF-B479197ADA5D}
+	EndGlobalSection
+EndGlobal

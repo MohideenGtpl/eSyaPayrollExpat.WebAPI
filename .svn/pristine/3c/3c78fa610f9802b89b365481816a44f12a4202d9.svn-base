@@ -1,0 +1,44 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using eSyaPayrollExpat.DO;
+using eSyaPayrollExpat.IF;
+using Microsoft.AspNetCore.Mvc;
+
+namespace eSyaPayrollExpat.WebAPI.Controllers
+{
+    [Route("api/[controller]/[action]")]
+    [ApiController]
+    public class PayrollProcessController : ControllerBase
+    {
+        private readonly IPayrollProcessRepository _payrollProcessRepository;
+        public PayrollProcessController(IPayrollProcessRepository payrollProcessRepository)
+        {
+            _payrollProcessRepository = payrollProcessRepository;
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetCurrencyExchangeRate()
+        {
+            var rs = await _payrollProcessRepository.GetCurrencyExchangeRate();
+            return Ok(rs);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetEmployeeForPayrollProcess(int businessKey, int payPeriod)
+        {
+            var rs = await _payrollProcessRepository.GetEmployeeForPayrollProcess(businessKey, payPeriod);
+            return Ok(rs);
+        }
+
+
+        [HttpPost]
+        public async Task<IActionResult> InsertIntoPayrollProcess(List<DO_PayrollProcess> obj)
+        {
+            var msg = await _payrollProcessRepository.InsertIntoPayrollProcess(obj);
+            return Ok(msg);
+
+        }
+    }
+}

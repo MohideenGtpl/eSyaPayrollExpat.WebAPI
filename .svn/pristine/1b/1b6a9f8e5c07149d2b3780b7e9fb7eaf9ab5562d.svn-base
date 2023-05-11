@@ -1,0 +1,974 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using eSyaPayrollExpat.DL.Entities;
+using eSyaPayrollExpat.DO;
+using eSyaPayrollExpat.IF;
+using System.Threading.Tasks;
+using System.Linq;
+using Microsoft.EntityFrameworkCore;
+namespace eSyaPayrollExpat.DL.Repository
+{
+    public class EmployeeMasterRepository : IEmployeeMasterRepository
+    {
+        #region Employee Details
+
+        public async Task<List<DO_EmployeeMaster>> GetEmployeeListByNamePrefix(int BusinessKey, string employeeNamePrefix)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var  result = db.GtPyexem.Where(w => w.BusinessKey == BusinessKey && w.EmployeeName.StartsWith(employeeNamePrefix != "All" ? employeeNamePrefix : "")).
+                      Join(db.GtEcapcd, x => x.EmployeeGroup, y => y.ApplicationCode,
+                      (x, y) => new { x, y })
+                 .Select(a => new DO_EmployeeMaster
+                 {
+                     BusinessKey =a.x.BusinessKey,
+                     EmployeeNumber = a.x.EmployeeNumber,
+                     EmployeeID=a.x.EmployeeId,
+                     BiometricID = a.x.BiometricId,
+                     Title = a.x.Title,
+                     EmployeeName = a.x.EmployeeName,
+                     EmailID = a.x.EmailId,
+                     MobileNumber = a.x.MobileNumber,
+                     ActiveStatus=a.x.ActiveStatus,
+                     EmployeeStatus=a.x.EmployeeStatus,
+                     EmployeeLocation=a.x.EmployeeLocation,
+                     Gender = a.x.Gender,
+                     EmployeeGroupDescription = a.y.CodeDesc
+                 }).ToListAsync();
+                    return await result;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<DO_ReturnParameter> InsertOrUpdateEmployeeMaster(DO_EmployeeMaster employeeMaster)
+        {
+            try
+            {
+                if (employeeMaster.EmployeeNumber != 0)
+                {
+                    return await UpdateEmployeeMaster(employeeMaster);
+                }
+                else
+                {
+                    return await InsertEmployeeMaster(employeeMaster);
+                }
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
+        public async Task<DO_ReturnParameter> InsertEmployeeMaster(DO_EmployeeMaster obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        //var _isMobileNoExist = db.GtPyexem.Where(w => w.MobileNumber == obj.MobileNumber).Count();
+                        //if (_isMobileNoExist > 0)
+                        //{
+                        //    return new DO_ReturnParameter() { Status = false, Message = "Mobile Number is already Exist." };
+                        //}
+
+                        //var _isEmaiExist = db.GtPyexem.Where(w => w.EmailId == obj.EmailID).Count();
+                        //if (_isEmaiExist > 0)
+                        //{
+                        //    return new DO_ReturnParameter() { Status = false, Message = "Email Id is already Exist." };
+                        //}
+
+                        GtPyexem isEmployeeExist = db.GtPyexem.Where(w=>w.BusinessKey == obj.BusinessKey).FirstOrDefault(c => c.EmployeeId.ToUpper().Replace(" ", "") == obj.EmployeeID.ToUpper().Replace(" ", ""));
+
+                        if (isEmployeeExist == null)
+                        {
+                            int employeeNumber = db.GtPyexem.Select(c => c.EmployeeNumber).DefaultIfEmpty().Max();
+                            employeeNumber = employeeNumber + 1;
+                            var exem = new GtPyexem
+                            {
+                                BusinessKey = obj.BusinessKey,
+                                EmployeeNumber = employeeNumber,
+                                EmployeeId = obj.EmployeeID,
+                                BiometricId = obj.BiometricID,
+                                Title = obj.Title,
+                                EmployeeName = obj.EmployeeName,
+                                Gender = obj.Gender,
+                                MobileNumber = obj.MobileNumber,
+                                EmailId = obj.EmailID,
+                                ExemptedFromAttendance = obj.ExemptedFromAttendance,
+                                Photo = obj.Photo,
+                                EmployeeGroup = obj.EmployeeGroup,
+                                WorkStatus = obj.WorkStatus,
+                                DateOfBirth = obj.DateOfBirth,
+                                BloodGroup = obj.BloodGroup,
+                                MotherTongue = obj.MotherTongue,
+                                DateOfJoining = obj.DateOfJoining,
+                                DateOfConfirmation = obj.DateOfConfirmation,
+                                DateOfResignation = obj.DateOfResignation,
+                                DateOfRelieving = obj.DateOfRelieving,
+                                DateOfTermination = obj.DateOfTermination,
+                                TerminationReason = obj.TerminationReason,
+                                EmployeeStatus = obj.EmployeeStatus,
+                                EmployeeLocation=0,
+                                ActiveStatus = obj.ActiveStatus,
+                                FormId = obj.FormId,
+                                CreatedBy = obj.UserID,
+                                CreatedOn = DateTime.Now,
+                                CreatedTerminal = obj.TerminalID
+                            };
+                            db.GtPyexem.Add(exem);
+
+                            await db.SaveChangesAsync();
+                            dbContext.Commit();
+                            return new DO_ReturnParameter() { Status = true, Message = "Employee created Successfully.", ID = employeeNumber };
+                        }
+                        else
+                        {
+                            return new DO_ReturnParameter() { Status = false, Message = "Employee ID already in use." };
+                        }
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+
+        public async Task<DO_ReturnParameter> UpdateEmployeeMaster(DO_EmployeeMaster obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        GtPyexem isdrcdExists = db.GtPyexem.Where(w => w.BusinessKey == obj.BusinessKey).FirstOrDefault(c => c.EmployeeNumber != obj.EmployeeNumber && c.EmployeeId.ToUpper().Replace(" ", "") == obj.EmployeeID.ToUpper().Replace(" ", ""));
+                        if (isdrcdExists != null)
+                        {
+                            return new DO_ReturnParameter() { Status = false, Message = "Employee Id is already exist." };
+                        }
+
+                        GtPyexem ex_em = db.GtPyexem.Where(s => s.BusinessKey == obj.BusinessKey && s.EmployeeNumber == obj.EmployeeNumber).FirstOrDefault();
+                        if (ex_em == null)
+                        {
+                            return new DO_ReturnParameter() { Status = false, Message = "Employee Name does not exist" };
+                        }
+
+                        ex_em.EmployeeId = obj.EmployeeID;
+                        ex_em.BiometricId = obj.BiometricID;
+                        ex_em.Title = obj.Title;
+                        ex_em.EmployeeName = obj.EmployeeName;
+                        ex_em.Gender = obj.Gender;
+                        ex_em.MobileNumber = obj.MobileNumber;
+                        ex_em.EmailId = obj.EmailID;
+                        ex_em.ExemptedFromAttendance = obj.ExemptedFromAttendance;
+                        ex_em.Photo = obj.Photo;
+                        ex_em.EmployeeGroup = obj.EmployeeGroup;
+                        ex_em.WorkStatus = obj.WorkStatus;
+                        //ex_em.DateOfBirth = obj.DateOfBirth;
+                        //ex_em.BloodGroup = obj.BloodGroup;
+                        //ex_em.MotherTongue = obj.MotherTongue;
+                        ex_em.DateOfJoining = obj.DateOfJoining;
+                        ex_em.DateOfConfirmation = obj.DateOfConfirmation;
+                        ex_em.DateOfResignation = obj.DateOfResignation;
+                        ex_em.DateOfRelieving = obj.DateOfRelieving;
+                        ex_em.DateOfTermination = obj.DateOfTermination;
+                        ex_em.TerminationReason = obj.TerminationReason;
+                        ex_em.EmployeeStatus = obj.EmployeeStatus;
+                        ex_em.EmployeeLocation= obj.EmployeeLocation;
+                        ex_em.ActiveStatus = obj.ActiveStatus;
+                        ex_em.ModifiedBy = obj.UserID;
+                        ex_em.ModifiedOn = DateTime.Now;
+                        ex_em.ModifiedTerminal = obj.TerminalID;
+                        
+                        await db.SaveChangesAsync();
+                        dbContext.Commit();
+
+                        return new DO_ReturnParameter() { Status = true, Message = "Employee Updated Successfully.", ID = obj.EmployeeNumber };
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+
+        public async Task<DO_EmployeeMaster> GetEmployeeDetails(int BusinessKey, int EmployeeNumber)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexem
+                        .Where(w => w.BusinessKey == BusinessKey && w.EmployeeNumber == EmployeeNumber)
+                        .Select(a => new DO_EmployeeMaster
+                        {
+                            BusinessKey = a.BusinessKey,
+                            EmployeeNumber = a.EmployeeNumber,
+                            EmployeeID = a.EmployeeId,
+                            BiometricID = a.BiometricId,
+                            Title = a.Title,
+                            EmployeeName = a.EmployeeName,
+                            Gender = a.Gender,
+                            MobileNumber = a.MobileNumber,
+                            EmailID = a.EmailId,
+                            ExemptedFromAttendance = a.ExemptedFromAttendance,
+                            Photo = a.Photo,
+                            EmployeeGroup = a.EmployeeGroup,
+                            WorkStatus = a.WorkStatus,
+                            DateOfBirth = a.DateOfBirth,
+                            BloodGroup = a.BloodGroup,
+                            MotherTongue = a.MotherTongue,
+                            DateOfJoining = a.DateOfJoining,
+                            DateOfConfirmation = a.DateOfConfirmation,
+                            DateOfResignation = a.DateOfResignation,
+                            DateOfRelieving = a.DateOfRelieving,
+                            DateOfTermination = a.DateOfTermination,
+                            TerminationReason = a.TerminationReason,
+                            EmployeeStatus = a.EmployeeStatus,
+                            EmployeeLocation=a.EmployeeLocation,
+                            ActiveStatus = a.ActiveStatus
+                        }).FirstOrDefaultAsync();
+
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+        #endregion Employee Details
+
+        #region Employee Personal Info
+        public async Task<DO_ReturnParameter> InsertOrUpdatePersonalInfo(DO_PersonalInfo obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        GtPyexpi ex_pi = db.GtPyexpi.FirstOrDefault(c => c.EmployeeNumber == obj.EmployeeNumber && c.PermanentOrCurrent == obj.PermanentOrCurrent);
+
+                        if (ex_pi == null)
+                        {
+                            var expi = new GtPyexpi
+                            {
+                                BusinessKey = obj.BusinessKey,
+                                EmployeeNumber = obj.EmployeeNumber,
+                                PermanentOrCurrent = obj.PermanentOrCurrent,
+                                Address = obj.Address,
+                                City = obj.City,
+                                Pincode = obj.Pincode,
+                                State = obj.State,
+                                Country = obj.Country,
+                                LandLineNumber = obj.LandLineNumber,
+                                ActiveStatus = obj.ActiveStatus,
+                                FormId = obj.FormId,
+                                CreatedBy = obj.UserID,
+                                CreatedOn = DateTime.Now,
+                                CreatedTerminal = obj.TerminalID
+                            };
+                            db.GtPyexpi.Add(expi);
+
+                            GtPyexem ex_em = db.GtPyexem.Where(s => s.EmployeeNumber == obj.EmployeeNumber).FirstOrDefault();
+                            if (ex_em != null)
+                            {
+                                ex_em.DateOfBirth = obj.DateOfBirth;
+                                ex_em.BloodGroup = obj.BloodGroup;
+                                ex_em.MotherTongue = obj.MotherTongue;
+                            }
+
+                            await db.SaveChangesAsync();
+                            dbContext.Commit();
+                            return new DO_ReturnParameter() { Status = true, Message = "Employee Personal Info created Successfully." };
+                        }
+                        else
+                        {
+                            ex_pi.PermanentOrCurrent = obj.PermanentOrCurrent;
+                            ex_pi.Address = obj.Address;
+                            ex_pi.City = obj.City;
+                            ex_pi.Pincode = obj.Pincode;
+                            ex_pi.State = obj.State;
+                            ex_pi.Country = obj.Country;
+                            ex_pi.LandLineNumber = obj.LandLineNumber;
+                            ex_pi.ActiveStatus = obj.ActiveStatus;
+                            ex_pi.ModifiedBy = obj.UserID;
+                            ex_pi.ModifiedOn = DateTime.Now;
+                            ex_pi.ModifiedTerminal = obj.TerminalID;
+
+                            GtPyexem ex_em = db.GtPyexem.Where(s => s.EmployeeNumber == obj.EmployeeNumber).FirstOrDefault();
+                            if (ex_em != null)
+                            {
+                                ex_em.DateOfBirth = obj.DateOfBirth;
+                                ex_em.BloodGroup = obj.BloodGroup;
+                                ex_em.MotherTongue = obj.MotherTongue;
+                            }
+
+                            await db.SaveChangesAsync();
+                            dbContext.Commit();
+
+                            return new DO_ReturnParameter() { Status = true, Message = "Employee Personal Info Updated Successfully." };
+                        }
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+
+        public async Task<DO_PersonalInfo> GetEmployeePersonalInfo(int BusinessKey, int EmployeeNumber)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexpi
+                        .Where(w => w.BusinessKey == BusinessKey && w.EmployeeNumber == EmployeeNumber)
+                        .Select(a => new DO_PersonalInfo
+                        {
+                            BusinessKey = a.BusinessKey,
+                            EmployeeNumber = a.EmployeeNumber,
+                            PermanentOrCurrent = a.PermanentOrCurrent,
+                            Address = a.Address,
+                            City = a.City,
+                            Pincode = a.Pincode,
+                            State = a.State,
+                            Country = a.Country,
+                            LandLineNumber = a.LandLineNumber,
+                            ActiveStatus = a.ActiveStatus
+                        }).FirstOrDefaultAsync();
+
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<DO_PersonalInfo> GetAddressDetail(int BusinessKey, int EmployeeNumber, string PermanentOrCurrent)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexpi
+                        .Where(w => w.BusinessKey == BusinessKey && w.EmployeeNumber == EmployeeNumber && w.PermanentOrCurrent == PermanentOrCurrent)
+                        .Select(a => new DO_PersonalInfo
+                        {
+                            BusinessKey = a.BusinessKey,
+                            EmployeeNumber = a.EmployeeNumber,
+                            PermanentOrCurrent = a.PermanentOrCurrent,
+                            Address = a.Address,
+                            City = a.City,
+                            Pincode = a.Pincode,
+                            State = a.State,
+                            Country = a.Country,
+                            LandLineNumber = a.LandLineNumber,
+                            ActiveStatus = a.ActiveStatus
+                        }).FirstOrDefaultAsync();
+
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<DO_ReturnParameter> InsertIntoSalaryInfo(DO_SalaryInfo obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        GtPyexsi ex_si = db.GtPyexsi.FirstOrDefault(c => c.BusinessKey == obj.BusinessKey &&  c.EmployeeNumber == obj.EmployeeNumber);
+                        
+                        if (ex_si != null)
+                        {
+                            ex_si.SalaryAmount = obj.SalaryAmount;
+                            ex_si.SalaryCurrency = obj.SalaryCurrency;
+                            ex_si.IsBankChargeApplicable = obj.IsBankChargeApplicable;
+                            ex_si.IsIncentiveApplicable = obj.IsIncentiveApplicable;
+                            ex_si.IsNhifapplicable = obj.IsNHIFApplicable;
+                            ex_si.Nhifamount = obj.NHIFAmount;
+                            ex_si.IsNssfapplicable = obj.IsNSSFApplicable;
+                            ex_si.Nssfamount = obj.NSSFAmount;
+                            ex_si.ModifiedBy = obj.UserID;
+                            ex_si.ModifiedOn = System.DateTime.Now;
+                            ex_si.ModifiedTerminal = obj.TerminalID;
+
+                            await db.SaveChangesAsync();
+                        }
+                        else
+                        {
+                            ex_si = new GtPyexsi();
+
+                            ex_si.BusinessKey = obj.BusinessKey;
+                            ex_si.EmployeeNumber = obj.EmployeeNumber;
+                            ex_si.SalaryAmount = obj.SalaryAmount;
+                            ex_si.SalaryCurrency = obj.SalaryCurrency;
+                            ex_si.IsBankChargeApplicable = obj.IsBankChargeApplicable;
+                            ex_si.IsIncentiveApplicable = obj.IsIncentiveApplicable;
+                            ex_si.IsNhifapplicable = obj.IsNHIFApplicable;
+                            ex_si.Nhifamount = obj.NHIFAmount;
+                            ex_si.IsNssfapplicable = obj.IsNSSFApplicable;
+                            ex_si.Nssfamount = obj.NSSFAmount;
+                            ex_si.FormId = obj.FormId;
+                            ex_si.CreatedBy = obj.UserID;
+                            ex_si.CreatedOn = DateTime.Now;
+                            ex_si.CreatedTerminal = System.Environment.MachineName;
+
+                            db.GtPyexsi.Add(ex_si);
+                            await db.SaveChangesAsync();
+                        }
+
+                        var ex_sb = await db.GtPyexsb.Where(w => w.BusinessKey == obj.BusinessKey && w.EmployeeNumber == obj.EmployeeNumber).ToListAsync();
+                        if (ex_sb != null)
+                        {
+                            db.GtPyexsb.RemoveRange(ex_sb);
+                            await db.SaveChangesAsync();
+                        }
+
+                        if (obj.L_SalaryBreakup != null)
+                        {
+                            int SrNo = 0;
+                            foreach (DO_SalaryBreakup i in obj.L_SalaryBreakup)
+                            {
+                                SrNo = SrNo + 1;
+
+                                GtPyexsb obj_FA = new GtPyexsb();
+                                
+                                obj_FA.BusinessKey = obj.BusinessKey;
+                                obj_FA.EmployeeNumber = obj.EmployeeNumber;
+                                obj_FA.SerialNumber = SrNo;
+                                obj_FA.PaymentByCurrency = i.PaymentByCurrency;
+                                obj_FA.PaymentAmountBySalaryCurrency = i.PaymentAmountBySalaryCurrency;
+                                obj_FA.TransferTo = i.TransferTo;
+                                obj_FA.FormId = obj.FormId;
+                                obj_FA.CreatedBy = obj.UserID;
+                                obj_FA.CreatedOn = DateTime.Now;
+                                obj_FA.CreatedTerminal = System.Environment.MachineName;
+                                db.GtPyexsb.Add(obj_FA);
+
+                            }
+                            await db.SaveChangesAsync();
+                        }
+                       
+                        dbContext.Commit();
+                        return new DO_ReturnParameter() { Status = true, Message = "Salary Info Updated Successfully." };
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+        #endregion Employee Personal Info
+
+        #region Salary Info
+        public async Task<DO_SalaryInfo> GetSalaryInfo(int BusinessKey, int EmployeeNumber)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexsi
+                        .Where(w => w.BusinessKey == BusinessKey && w.EmployeeNumber == EmployeeNumber)
+                        .Select(a => new DO_SalaryInfo
+                        {
+                            BusinessKey = a.BusinessKey,
+                            EmployeeNumber = a.EmployeeNumber,
+                            SalaryAmount = a.SalaryAmount,
+                            SalaryCurrency = a.SalaryCurrency,
+                            IsBankChargeApplicable = a.IsBankChargeApplicable,
+                            IsIncentiveApplicable = a.IsIncentiveApplicable,
+                            IsNHIFApplicable = a.IsNhifapplicable,
+                            NHIFAmount = a.Nhifamount,
+                            IsNSSFApplicable = a.IsNssfapplicable,
+                            NSSFAmount = a.Nssfamount
+                        }).FirstOrDefaultAsync();
+
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<List<DO_SalaryBreakup>> GetSalaryBreakup(int BusinessKey, int EmployeeNumber)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var result = await db.GtPyexsb
+                        .GroupJoin(db.GtEccuco,
+                        t => new { CurrencyCode = t.PaymentByCurrency },
+                        b => new { b.CurrencyCode },
+                        (t, b) => new { t, b = b.FirstOrDefault() })
+                         .Where(w => w.t.BusinessKey == BusinessKey && w.t.EmployeeNumber == EmployeeNumber)
+                        .Select(a => new DO_SalaryBreakup
+                        {
+                            PaymentByCurrency = a.t.PaymentByCurrency,
+                            CurrencyDescription = a.b.CurrencyName,
+                            PaymentAmountBySalaryCurrency = a.t.PaymentAmountBySalaryCurrency,
+                            TransferTo = a.t.TransferTo,
+                            TransferToDescription = a.t.TransferTo == "B"?"Bank":"Cash"
+                        }).ToListAsync();
+                    return result;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        #endregion Salary Info
+
+        #region Bank Details
+        public async Task<DO_ReturnParameter> InsertOrUpdateBankDetail(DO_BankDetail obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        GtPyexbd ex_bd = db.GtPyexbd.FirstOrDefault(c => c.BusinessKey == obj.BusinessKey && c.EmployeeNumber == obj.EmployeeNumber && c.SerialNumber == obj.SerialNumber);
+
+                        if (ex_bd == null)
+                        {
+                            int serialNumber = db.GtPyexbd.Where(c => c.BusinessKey == obj.BusinessKey && c.EmployeeNumber == obj.EmployeeNumber).Select(c => c.SerialNumber).DefaultIfEmpty().Max();
+                            serialNumber = serialNumber + 1;
+                            var exbd = new GtPyexbd
+                            {
+                                BusinessKey = obj.BusinessKey,
+                                EmployeeNumber = obj.EmployeeNumber,
+                                SerialNumber = serialNumber,
+                                BankRemittance = obj.BankRemittance,
+                                BankCurrency = obj.BankCurrency,
+                                AccountHolderName = obj.AccountHolderName,
+                                BankCode = obj.BankCode,
+                                BankName = obj.BankName,
+                                AccountNumber = obj.AccountNumber,
+                                BranchCode = obj.BranchCode,
+                                BranchName = obj.BranchName,
+                                BankAddress = obj.BankAddress,
+                                BeneficiaryAddress = obj.BeneficiaryAddress,
+                                Ifsccode = obj.IFSCCode,
+                                Swiftcode = obj.SWIFTCode,
+                                Iban = obj.IBAN,
+                                CorrespondingBankName = obj.CorrespondingBankName,
+                                CorrespondingBankAddress = obj.CorrespondingBankAddress,
+                                CorrespondingBankAccountNumber = obj.CorrespondingBankAccountNumber,
+                                ActiveStatus = obj.ActiveStatus,
+                                FormId = obj.FormId,
+                                CreatedBy = obj.UserID,
+                                CreatedOn = DateTime.Now,
+                                CreatedTerminal = obj.TerminalID
+                            };
+                            db.GtPyexbd.Add(exbd);
+
+                            await db.SaveChangesAsync();
+                            dbContext.Commit();
+                            return new DO_ReturnParameter() { Status = true, Message = "Employee Bank Details created Successfully." };
+                        }
+                        else
+                        {
+                            ex_bd.BankRemittance = obj.BankRemittance;
+                            ex_bd.BankCurrency = obj.BankCurrency;
+                            ex_bd.AccountHolderName = obj.AccountHolderName;
+                            ex_bd.BankCode = obj.BankCode;
+                            ex_bd.BankName = obj.BankName;
+                            ex_bd.AccountNumber = obj.AccountNumber;
+                            ex_bd.BranchCode = obj.BranchCode;
+                            ex_bd.BranchName = obj.BranchName;
+                            ex_bd.BankAddress = obj.BankAddress;
+                            ex_bd.BeneficiaryAddress = obj.BeneficiaryAddress;
+                            ex_bd.Ifsccode = obj.IFSCCode;
+                            ex_bd.Swiftcode = obj.SWIFTCode;
+                            ex_bd.Iban = obj.IBAN;
+                            ex_bd.CorrespondingBankName = obj.CorrespondingBankName;
+                            ex_bd.CorrespondingBankAddress = obj.CorrespondingBankAddress;
+                            ex_bd.CorrespondingBankAccountNumber = obj.CorrespondingBankAccountNumber;
+                            ex_bd.ActiveStatus = obj.ActiveStatus;
+                            ex_bd.ModifiedBy = obj.UserID;
+                            ex_bd.ModifiedOn = DateTime.Now;
+                            ex_bd.ModifiedTerminal = obj.TerminalID;
+
+                            await db.SaveChangesAsync();
+                            dbContext.Commit();
+
+                            return new DO_ReturnParameter() { Status = true, Message = "Employee Bank Details Updated Successfully." };
+                        }
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+
+        public async Task<List<DO_BankDetail>> GetBankDetail(int BusinessKey, int EmployeeNumber)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var result = await db.GtPyexbd
+                        .GroupJoin(db.GtEccuco,
+                        t => new { CurrencyCode = t.BankCurrency },
+                        b => new { b.CurrencyCode },
+                        (t, b) => new { t, b = b.FirstOrDefault() })
+                         .Where(w => w.t.BusinessKey == BusinessKey && w.t.EmployeeNumber == EmployeeNumber)
+                        .Select(a => new DO_BankDetail
+                        {
+                            SerialNumber = a.t.SerialNumber,
+                            BankRemittanceCode = a.t.BankRemittance,
+                            BankRemittance = a.t.BankRemittance == "L"? "Local": "Outward",
+                            BankCurrencyCode = a.t.BankCurrency,
+                            BankCurrency = a.b.CurrencyName,
+                            AccountHolderName = a.t.AccountHolderName,
+                            AccountNumber = a.t.AccountNumber,
+                            BankCode = a.t.BankCode,
+                            BankName = a.t.BankName,
+                            BranchCode = a.t.BranchCode,
+                            BranchName = a.t.BranchName,
+                            BankAddress = a.t.BankAddress,
+                            BeneficiaryAddress = a.t.BeneficiaryAddress,
+                            IFSCCode = a.t.Ifsccode,
+                            SWIFTCode = a.t.Swiftcode,
+                            IBAN = a.t.Iban,
+                            CorrespondingBankName = a.t.CorrespondingBankName,
+                            CorrespondingBankAddress = a.t.CorrespondingBankAddress,
+                            CorrespondingBankAccountNumber = a.t.CorrespondingBankAccountNumber,
+                            ActiveStatus = a.t.ActiveStatus,
+                        }).ToListAsync();
+                    return result;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        #endregion Bank Details
+
+        #region Current job
+        public async Task<DO_ReturnParameter> InsertOrUpdateCurrentJob(DO_CurrentJob obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        GtPyexcj ex_cj = db.GtPyexcj.FirstOrDefault(c => c.EmployeeNumber == obj.EmployeeNumber && c.BusinessKey==obj.BusinessKey && c.FromDate==obj.FromDate);
+
+                        if (ex_cj == null)
+                        {
+                            var excj = new GtPyexcj
+                            {
+                                BusinessKey = obj.BusinessKey,
+                                EmployeeNumber = obj.EmployeeNumber,
+                                FromDate = obj.FromDate,
+                                TillDate = obj.TillDate,
+                                Department = obj.Department,
+                                Designation = obj.Designation,
+                                FunctionalReportingTo = obj.FunctionalReportingTo,
+                                AdministrativeReportingTo = obj.AdministrativeReportingTo,
+                                FormId = obj.FormId,
+                                CreatedBy = obj.UserID,
+                                CreatedOn = DateTime.Now,
+                                CreatedTerminal = obj.TerminalID
+                            };
+                            db.GtPyexcj.Add(excj);
+
+                            await db.SaveChangesAsync();
+                            dbContext.Commit();
+                            return new DO_ReturnParameter() { Status = true, Message = "Employee Current Job created Successfully." };
+                        }
+                        else
+                        {
+                            ex_cj.TillDate = obj.TillDate;
+                            ex_cj.Department = obj.Department;
+                            ex_cj.Designation = obj.Designation;
+                            ex_cj.FunctionalReportingTo = obj.FunctionalReportingTo;
+                            ex_cj.AdministrativeReportingTo = obj.AdministrativeReportingTo;
+                            ex_cj.ModifiedBy = obj.UserID;
+                            ex_cj.ModifiedOn = DateTime.Now;
+                            ex_cj.ModifiedTerminal = obj.TerminalID;
+
+                            await db.SaveChangesAsync();
+                            dbContext.Commit();
+
+                            return new DO_ReturnParameter() { Status = true, Message = "Employee Current Job Updated Successfully." };
+                        }
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+
+        public async Task<List<DO_CurrentJob>> GetCurrentJob(int BusinessKey, int EmployeeNumber)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+
+                    var result = await db.GtPyexcj
+                         .Where(w => w.BusinessKey == BusinessKey && w.EmployeeNumber == EmployeeNumber).
+                       Join(db.GtEcapcd, u => u.Department, uir => uir.ApplicationCode,
+                       (u, uir) => new { u, uir }).
+                       Join(db.GtEcapcd, r => r.u.Designation, ro => ro.ApplicationCode, (r, ro) => new { r, ro })
+                      .Select(m => new DO_CurrentJob
+                      {
+                          BusinessKey = m.r.u.BusinessKey,
+                          EmployeeNumber = m.r.u.EmployeeNumber,
+                          FromDate = m.r.u.FromDate,
+                          TillDate = m.r.u.TillDate,
+                          Department = m.r.u.Department,
+                          Designation = m.r.u.Designation,
+                          FunctionalReportingTo = m.r.u.FunctionalReportingTo,
+                          AdministrativeReportingTo = m.r.u.AdministrativeReportingTo,
+                          DepartmentDesc = m.r.uir.CodeDesc,
+                          DesignationDesc = m.ro.CodeDesc,
+                         
+                      }).ToListAsync();
+                    return result;
+                    
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+        #endregion Current job
+
+        #region Fixed Deduction Info
+
+        public async Task<List<DO_FixedDeductionInfo>> GetFixedDeductionInfo(int BusinessKey, int EmployeeNumber)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexfd.Where(x =>x.BusinessKey==BusinessKey && x.EmployeeNumber == EmployeeNumber)
+                        .Select(p => new DO_FixedDeductionInfo
+                        {
+                            BusinessKey = p.BusinessKey,
+                            EmployeeNumber = p.EmployeeNumber,
+                            FixedDeductionId = p.FixedDeductionId,
+                            FixedDeductionType=p.FixedDeductionType,
+                            DeductionDesc=p.DeductionDesc,
+                            Amount = p.Amount,
+                            NoOfinstallment = p.NoOfinstallment,
+                            PaidAmount = p.PaidAmount,
+                            ReferenceDetail = p.ReferenceDetail,
+                            Status = p.Status,
+                            SkipinPayroll = p.SkipinPayroll,
+                        }).ToListAsync();
+
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<DO_ReturnParameter> InsertOrUpdateFixedDeductionInfo(DO_FixedDeductionInfo obj)
+        {
+            try
+            {
+                if (obj.FixedDeductionId != 0)
+                {
+                    return await UpdateFixedDeductionInfo(obj);
+                }
+                else
+                {
+                    return await InsertFixedDeductionInfo(obj);
+                }
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
+        public async Task<DO_ReturnParameter> InsertFixedDeductionInfo(DO_FixedDeductionInfo obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                      
+                        GtPyexfd is_Exist = db.GtPyexfd.FirstOrDefault(c => c.BusinessKey == obj.BusinessKey && c.EmployeeNumber==obj.EmployeeNumber && c.FixedDeductionId==obj.FixedDeductionId);
+
+                        if (is_Exist == null)
+                        {
+                            int fixed_MaxId = db.GtPyexfd.Select(f =>f.FixedDeductionId).DefaultIfEmpty().Max();
+                            fixed_MaxId = fixed_MaxId + 1;
+                            var fixeddeduction = new GtPyexfd
+                            {
+                                BusinessKey = obj.BusinessKey,
+                                EmployeeNumber = obj.EmployeeNumber,
+                                FixedDeductionId=fixed_MaxId,
+                                FixedDeductionType=obj.FixedDeductionType,
+                                DeductionDesc=obj.DeductionDesc,
+                                Amount=obj.Amount,
+                                NoOfinstallment=obj.NoOfinstallment,
+                                PaidAmount=obj.PaidAmount,
+                                ReferenceDetail=obj.ReferenceDetail,
+                                Status=obj.Status,
+                                SkipinPayroll=obj.SkipinPayroll,
+                                FormId = obj.FormId,
+                                CreatedBy = obj.UserID,
+                                CreatedOn = DateTime.Now,
+                                CreatedTerminal = obj.TerminalID
+                            };
+                            db.GtPyexfd.Add(fixeddeduction);
+
+                            await db.SaveChangesAsync();
+                            dbContext.Commit();
+                            return new DO_ReturnParameter() { Status = true, Message = "Fixed Deduction created Successfully."};
+                        }
+                        else
+                        {
+                            return new DO_ReturnParameter() { Status = false, Message = "Fixed Deduction already in Exists." };
+                        }
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+
+        public async Task<DO_ReturnParameter> UpdateFixedDeductionInfo(DO_FixedDeductionInfo obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        GtPyexfd fixeddeduction = db.GtPyexfd.FirstOrDefault(c => c.BusinessKey == obj.BusinessKey && c.EmployeeNumber == obj.EmployeeNumber && c.FixedDeductionId == obj.FixedDeductionId);
+                        if (fixeddeduction != null)
+                        {
+                            fixeddeduction.FixedDeductionType = obj.FixedDeductionType;
+                            fixeddeduction.DeductionDesc = obj.DeductionDesc;
+                            fixeddeduction.Amount = obj.Amount;
+                            fixeddeduction.NoOfinstallment = obj.NoOfinstallment;
+                            fixeddeduction.PaidAmount = obj.PaidAmount;
+                            fixeddeduction.ReferenceDetail = obj.ReferenceDetail;
+                            fixeddeduction.Status = obj.Status;
+                            fixeddeduction.SkipinPayroll = obj.SkipinPayroll;
+                            fixeddeduction.ModifiedBy = obj.UserID;
+                            fixeddeduction.ModifiedOn = DateTime.Now;
+                            fixeddeduction.ModifiedTerminal = obj.TerminalID;
+
+                        await db.SaveChangesAsync();
+                        dbContext.Commit();
+
+                        return new DO_ReturnParameter() { Status = true, Message = "Fixed Deduction Updated Successfully." };
+                        }
+                        else
+                        {
+                            return new DO_ReturnParameter() { Status = false, Message = "Fixed Deduction doesn't Exists." };
+                        }
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+
+        #endregion Employee Deduction Info
+
+    }
+}

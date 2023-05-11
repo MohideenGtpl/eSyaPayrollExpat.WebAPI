@@ -1,0 +1,69 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using eSyaPayrollExpat.DO;
+using eSyaPayrollExpat.IF;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+
+namespace eSyaPayrollExpat.WebAPI.Controllers
+{
+    [Route("api/[controller]/[action]")]
+    [ApiController]
+    public class AttendanceProcessController : ControllerBase
+    {
+        private readonly IAttendanceProcessRepository _AttendanceProcessRepository;
+        public AttendanceProcessController(IAttendanceProcessRepository AttendanceProcessRepository)
+        {
+            _AttendanceProcessRepository = AttendanceProcessRepository;
+        }
+
+        /// <summary>
+        /// Getting  Active Employess for Drop down.
+        /// UI Reffered -Attendance Process
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetActiveEmployees()
+        {
+            var emps = await _AttendanceProcessRepository.GetActiveEmployees();
+            return Ok(emps);
+        }
+
+
+        /// <summary>
+        /// Getting  Attendance Process List.
+        /// UI Reffered - Attendance Process Grid
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetAllAttendanceProcess()
+        {
+            var att_process = await _AttendanceProcessRepository.GetAllAttendanceProcess();
+            return Ok(att_process);
+        }
+
+        /// <summary>
+        /// Insert Attendance Process.
+        /// UI Reffered - Attendance Process
+        /// </summary>
+        [HttpPost]
+        public async Task<IActionResult> InsertAttendanceProcess(DO_AttendanceProcess obj)
+        {
+            var msg = await _AttendanceProcessRepository.InsertAttendanceProcess(obj);
+            return Ok(msg);
+
+        }
+
+        /// <summary>
+        /// Update Attendance Process.
+        /// UI Reffered - Attendance Process
+        /// </summary>
+        [HttpPost]
+        public async Task<IActionResult> UpdateAttendanceProcess(DO_AttendanceProcess obj)
+        {
+            var msg = await _AttendanceProcessRepository.UpdateAttendanceProcess(obj);
+            return Ok(msg);
+
+        }
+    }
+}

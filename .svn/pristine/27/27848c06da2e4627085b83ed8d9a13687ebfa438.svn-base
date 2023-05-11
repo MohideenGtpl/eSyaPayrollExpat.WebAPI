@@ -1,0 +1,156 @@
+﻿using eSyaPayrollExpat.DL.Entities;
+using eSyaPayrollExpat.DO;
+using eSyaPayrollExpat.IF;
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace eSyaPayrollExpat.DL.Repository
+{
+    public class VariableEntryRepository : IVariableEntryRepository
+    {
+        public async Task<List<DO_EmployeeMaster>> GetCboEmployees()
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexem.Where(e => e.ActiveStatus == true)
+                        .Select(x=> new DO_EmployeeMaster
+                        {
+                           EmployeeNumber=x.EmployeeNumber,
+                           EmployeeName=x.EmployeeName
+                        }).OrderBy(x=>x.EmployeeName).ToListAsync();
+
+                    return await ds;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<List<DO_AdvanceSalary>> GetAdvanceSalarybyBusinessKey(int Businesskey)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexva.Where(x => x.BusinessKey == Businesskey).Join(db.GtPyexem.Where(x=>x.BusinessKey==Businesskey),
+                         x => x.EmployeeNumber,
+                         y => y.EmployeeNumber,
+                        (x, y) => new DO_AdvanceSalary
+                        {
+                            BusinessKey = x.BusinessKey,
+                            EmployeeNumber = x.EmployeeNumber,
+                            EmployeeName = y.EmployeeName,
+                            PayPeriod = x.PayPeriod,
+                            SalaryAdvance = x.SalaryAdvance,
+                            ActiveStatus = x.ActiveStatus,
+                        }).ToListAsync();
+
+                    return await ds;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<DO_ReturnParameter> InsertAdvanceSalary(DO_AdvanceSalary obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        GtPyexva is_isvarExists = db.GtPyexva.FirstOrDefault(v => v.BusinessKey == obj.BusinessKey && v.PayPeriod == obj.PayPeriod && v.EmployeeNumber == obj.EmployeeNumber);
+
+                        if (is_isvarExists == null)
+                        {
+                            var var_Entry = new GtPyexva
+                            {
+                                BusinessKey = obj.BusinessKey,
+                                EmployeeNumber = obj.EmployeeNumber,
+                                PayPeriod = obj.PayPeriod,
+                                SalaryAdvance = obj.SalaryAdvance,
+                                ActiveStatus = obj.ActiveStatus,
+                                FormId = obj.FormId,
+                                CreatedBy = obj.UserID,
+                                CreatedOn = System.DateTime.Now,
+                                CreatedTerminal = obj.TerminalID
+                            };
+                            db.GtPyexva.Add(var_Entry);
+                            await db.SaveChangesAsync();
+                            dbContext.Commit();
+                            return new DO_ReturnParameter() { Status = true, Message = "Advance Salary Created Successfully." };
+                        }
+                        else
+                        {
+                            return new DO_ReturnParameter() { Status = false, Message = "Advance Salary is already Exists." };
+                        }
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+
+        public async Task<DO_ReturnParameter> UpdateAdvanceSalary(DO_AdvanceSalary obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        GtPyexva ad_sal = db.GtPyexva.FirstOrDefault(v => v.BusinessKey == obj.BusinessKey && v.PayPeriod == obj.PayPeriod && v.EmployeeNumber == obj.EmployeeNumber);
+
+                        if (ad_sal != null)
+                        {
+                            ad_sal.SalaryAdvance = obj.SalaryAdvance;
+                            ad_sal.ActiveStatus = obj.ActiveStatus;
+                            ad_sal.ModifiedBy = obj.UserID;
+                            ad_sal.ModifiedOn = System.DateTime.Now;
+                            ad_sal.ModifiedTerminal = obj.TerminalID;
+                            await db.SaveChangesAsync();
+                            dbContext.Commit();
+                            return new DO_ReturnParameter() { Status = true, Message = "Advance Salary Updated Successfully." };
+                        }
+                        else
+                        {
+                            return new DO_ReturnParameter() { Status = false, Message = "Couldn't find Advance Salary." };
+                        }
+
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+    }
+}

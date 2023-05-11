@@ -1,0 +1,17 @@
+﻿using eSyaPayrollExpat.DO;
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace eSyaPayrollExpat.IF
+{
+   public interface IPayPeriodRepository
+    {
+        Task<List<DO_PayPeriod>> GetPayPeriodsbyBusinessKey(int Businesskey);
+
+        Task<DO_ReturnParameter> InsertPayPeriod(DO_PayPeriod obj);
+
+        Task<DO_ReturnParameter> UpdatePayPeriod(DO_PayPeriod obj);
+    }
+}

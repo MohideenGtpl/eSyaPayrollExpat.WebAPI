@@ -1,0 +1,260 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using eSyaPayrollExpat.DL.Entities;
+using eSyaPayrollExpat.DO;
+using eSyaPayrollExpat.IF;
+using System.Threading.Tasks;
+using System.Linq;
+using Microsoft.EntityFrameworkCore;
+namespace eSyaPayrollExpat.DL.Repository
+{
+    public class BankMasterRepository:IBankMasterRepository
+    {
+        #region Bank Master
+
+        public async Task<List<DO_BankMaster>> GetBankMasterByBusinessKey(int businesskey)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexbm.Where(x=>x.BusinessKey== businesskey).Select(
+                      x=> new DO_BankMaster
+                      {
+                        BusinessKey=x.BusinessKey,
+                        BankCode =x.BankCode,
+                        BankName=x.BankName,
+                        BankAccountNumber=x.BankAccountNumber,
+                        BranchCode=x.BranchCode,
+                        BranchName=x.BranchName,
+                        BranchAddress=x.BranchAddress,
+                        BankCharges=x.BankCharges,
+                        ActiveStatus=x.ActiveStatus
+                       }).ToListAsync();
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<DO_ReturnParameter> InsertBankMaster(DO_BankMaster obj)
+        {
+            using (eSyaEnterprise db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+
+                        GtPyexbm is_bankcodeExists = db.GtPyexbm.FirstOrDefault(bc => bc.BankCode.ToUpper().Replace(" ", "") == obj.BankCode.ToUpper().Replace(" ", "") && bc.BusinessKey==obj.BusinessKey);
+                        if (is_bankcodeExists == null)
+                        {
+                            var bank_master = new GtPyexbm
+                            {
+                                BusinessKey=obj.BusinessKey,
+                                BankCode=obj.BankCode,
+                                BankName=obj.BankName,
+                                BankAccountNumber=obj.BankAccountNumber,
+                                BranchCode=obj.BranchCode,
+                                BranchName=obj.BranchName,
+                                BranchAddress=obj.BranchAddress,
+                                BankCharges=obj.BankCharges,
+                                ActiveStatus=obj.ActiveStatus,
+                                FormId = obj.FormId,
+                                CreatedBy = obj.UserID,
+                                CreatedOn = DateTime.Now,
+                                CreatedTerminal = obj.TerminalID
+                            };
+                            db.GtPyexbm.Add(bank_master);
+
+                            List<GtPyexbc> bank_currency = db.GtPyexbc.Where(b => b.BankCode.ToUpper().Replace(" ", "") == obj.BankCode.ToUpper().Replace(" ", "") &&b.BusinessKey==obj.BusinessKey).ToList();
+                            
+                                if (bank_currency.Count > 0)
+                                {
+                                    foreach (var item in bank_currency)
+                                    {
+                                        db.GtPyexbc.Remove(item);
+                                        db.SaveChanges();
+                                    }
+
+                                }
+
+                            if (obj.BankCurrencyList != null)
+                            {
+                                foreach (var bc in obj.BankCurrencyList)
+                                {
+                                    GtPyexbc objkeys = new GtPyexbc
+                                    {
+                                        BusinessKey=obj.BusinessKey,
+                                        BankCode = obj.BankCode,
+                                        BankCurrency = bc,
+                                        ActiveStatus=true,
+                                        FormId = obj.FormId,
+                                        CreatedBy = obj.UserID,
+                                        CreatedOn = DateTime.Now,
+                                        CreatedTerminal = obj.TerminalID
+                                    };
+                                    db.GtPyexbc.Add(objkeys);
+                                    await db.SaveChangesAsync();
+
+                                }
+
+                            }
+                            await db.SaveChangesAsync();
+                            dbContext.Commit();
+                            return new DO_ReturnParameter() { Status = true, Message = "Bank Master Created Successfully." };
+                        }
+                        else
+                        {
+                            return new DO_ReturnParameter() { Status = false, Message = "Bank Code is already Exists try another one." };
+                        }
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+
+        public async Task<DO_ReturnParameter> UpdateBankMaster(DO_BankMaster obj)
+        {
+            using (eSyaEnterprise db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+
+                    try
+                    {
+                       var bank_master = db.GtPyexbm.FirstOrDefault(bc => bc.BankCode.ToUpper().Replace(" ", "") == obj.BankCode.ToUpper().Replace(" ", "") && bc.BusinessKey==obj.BusinessKey);
+                            if (bank_master != null)
+                            {
+                            bank_master.BankName = obj.BankName;
+                            bank_master.BankAccountNumber = obj.BankAccountNumber;
+                            bank_master.BranchCode = obj.BranchCode;
+                            bank_master.BranchName = obj.BranchName;
+                            bank_master.BranchAddress = obj.BranchAddress;
+                            bank_master.BankCharges = obj.BankCharges;
+                            bank_master.ActiveStatus = obj.ActiveStatus;
+                            bank_master.ModifiedBy = obj.UserID;
+                            bank_master.ModifiedOn = DateTime.Now;
+                            bank_master.ModifiedTerminal = obj.TerminalID;
+                            await db.SaveChangesAsync();
+                            List<GtPyexbc> bank_currency = db.GtPyexbc.Where(b => b.BankCode.ToUpper().Replace(" ", "") == obj.BankCode.ToUpper().Replace(" ", "")&&b.BusinessKey==obj.BusinessKey).ToList();
+                           
+                                if (bank_currency.Count > 0)
+                                {
+                                    foreach (var item in bank_currency)
+                                    {
+                                        db.GtPyexbc.Remove(item);
+                                        db.SaveChanges();
+                                    }
+
+                                }
+                            if (obj.BankCurrencyList != null)
+                            {
+                                foreach (var bc in obj.BankCurrencyList)
+                                {
+                                    GtPyexbc objkeys = new GtPyexbc
+                                    {
+                                        BusinessKey=obj.BusinessKey,
+                                        BankCode = obj.BankCode,
+                                        BankCurrency = bc,
+                                        ActiveStatus = true,
+                                        FormId = obj.FormId,
+                                        CreatedBy = obj.UserID,
+                                        CreatedOn = DateTime.Now,
+                                        CreatedTerminal = obj.TerminalID
+                                    };
+                                    db.GtPyexbc.Add(objkeys);
+                                    await db.SaveChangesAsync();
+
+                                }
+                        }
+
+                        dbContext.Commit();
+                            return new DO_ReturnParameter() { Status = true, Message = "Bank Master Updated Successfully." };
+                            }
+                            else
+                            {
+                                return new DO_ReturnParameter() { Status = false, Message = "Couldn't find Bank Master." };
+                            }
+                      
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+
+        public async Task<List<DO_CurrencyMaster>> GetCurrencyMaster()
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtEccuco.Where(x => x.ActiveStatus == true).Select(
+                      x => new DO_CurrencyMaster
+                      {
+                          CurrencyCode = x.CurrencyCode,
+                          CurrencyName = x.CurrencyName
+                      }).ToListAsync();
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<List<DO_BankCurrency>> GetBankCurrencyByBusinessKey(int businesskey,string BankCode)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    if (BankCode != null)
+                    {
+                        var ds = db.GtPyexbc.Where(x => x.BankCode.ToUpper().Replace(" ", "") == BankCode.ToUpper().Replace(" ", "")&&x.BusinessKey==businesskey).Select(
+                          x => new DO_BankCurrency
+                          {
+                              BankCode = x.BankCode,
+                              BankCurrency = x.BankCurrency,
+                              ActiveStatus = x.ActiveStatus
+                          }).ToListAsync();
+                        return await ds;
+                    }
+                    else
+                    {
+                        return null;
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+        #endregion Bank Master
+    }
+}

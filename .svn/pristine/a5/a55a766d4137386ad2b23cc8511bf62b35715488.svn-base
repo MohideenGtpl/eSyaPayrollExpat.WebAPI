@@ -1,0 +1,12 @@
+﻿using eSyaPayrollExpat.IF;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace eSyaPayrollExpat.DL.Repository
+{
+   public class AttendanceProcessRepository: IAttendanceProcessRepository
+    {
+
+    }
+}

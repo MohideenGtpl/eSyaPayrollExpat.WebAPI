@@ -1,0 +1,295 @@
+﻿using eSyaPayrollExpat.DL.Entities;
+using eSyaPayrollExpat.DO;
+using eSyaPayrollExpat.IF;
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace eSyaPayrollExpat.DL.Repository
+{
+    public class AttendanceProcessRepository : IAttendanceProcessRepository
+    {
+        public async Task<List<DO_PayPeriod>> GetPayPeriodbyBusinessKey(int Businesskey)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var pp = await db.GtPyexpp.Where(x => x.BusinessKey == Businesskey && x.IsPayrollFreezed == false && x.ActiveStatus == true)
+                          .Select(x => new DO_PayPeriod
+                          {
+                              PayPeriod = x.PayPeriod,
+                              WorkingDays = x.WorkingDays,
+                          }).ToListAsync();
+
+                    return pp;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<List<DO_AttendanceProcess>> GetAttendanceProcessbyBusinessKey(int Businesskey, int Payperiod)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var _payperiod = db.GtPyexpp.Where(x => x.PayPeriod == Payperiod && x.BusinessKey == Businesskey).FirstOrDefault();
+
+                    var dtProcessDate = new DateTime(Convert.ToInt32(Payperiod.ToString().Substring(0, 4)),
+                           Convert.ToInt32(Payperiod.ToString().Substring(4, 2)),
+                           1);
+
+                    var att = await db.GtPyexem.Where(x => x.BusinessKey == Businesskey && x.DateOfJoining.Date < dtProcessDate.Date.AddMonths(1) && x.EmployeeStatus == "Y" && x.ActiveStatus == true)
+                            .GroupJoin(db.GtPyexta.Where(x => x.BusinessKey == Businesskey && x.PayPeriod == Payperiod),
+                            m => m.EmployeeNumber,
+                            l => l.EmployeeNumber,
+                            (m, l) => new
+                            { m, l }).SelectMany(z => z.l.DefaultIfEmpty(),
+                            (a, b) => new DO_AttendanceProcess
+                            {
+                                BusinessKey = a.m.BusinessKey,
+                                EmployeeNumber =  a.m.EmployeeNumber,
+                                EmployeeName = a.m.Title + "." + a.m.EmployeeName,
+                                DateOfJoining = a.m.DateOfJoining,
+                                PayPeriod = b != null ? b.PayPeriod : _payperiod.PayPeriod,
+                                TotalDays = _payperiod.WorkingDays,
+                                Workingdays = _payperiod.WorkingDays,
+                                Lopdays = b != null ? b.Lopdays : 0,
+                                IsVacationPay = b != null ? b.IsVacationPay : false,
+                                VacationDays = b != null ? b.VacationDays : 0,
+                                VacationPayPercentage = b != null ? b.VacationPayPercentage : 50,
+                                VaccationPayDays = b != null ? b.VaccationPayDays : 0,
+                                AttendedDays = b != null ? b.AttendedDays : _payperiod.WorkingDays,
+                                AttendanceFactor = b != null ? b.AttendanceFactor : 1,
+                                ActiveStatus = b != null ? b.ActiveStatus : true,
+                               
+                            }).OrderBy(o => o.EmployeeName).ToListAsync();
+               
+
+                    var doj = att.Where(w => w.DateOfJoining.Date > dtProcessDate.Date);
+                    foreach (var j in doj)
+                    {
+                        double Workingdays = j.Workingdays - (j.DateOfJoining - dtProcessDate).TotalDays;
+                        j.Workingdays = (int)Workingdays;
+                        j.AttendedDays = j.Workingdays - j.Lopdays;
+                        j.AttendanceFactor = Math.Round(j.AttendedDays / j.TotalDays,6);
+                    }
+
+                    return att;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<DO_ReturnParameter> InsertOrUpdateAttendanceProcess(List<DO_AttendanceProcess> obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        var o = obj.FirstOrDefault();
+                        var pp = db.GtPyexpp.Where(w => w.BusinessKey == o.BusinessKey && w.PayPeriod == o.PayPeriod).FirstOrDefault();
+                        if(pp != null)
+                        {
+                            if(pp.IsPayrollFreezed)
+                              return  new DO_ReturnParameter() { Status = false, Message = "Payroll is Freezed. can't make changes." };
+                        }
+
+                        foreach (var a_proc in obj)
+                        {
+                            GtPyexta _isExistsproc = db.GtPyexta.FirstOrDefault(a => a.BusinessKey == a_proc.BusinessKey && a.PayPeriod == a_proc.PayPeriod && a.EmployeeNumber == a_proc.EmployeeNumber);
+
+                            if (_isExistsproc == null)
+                            {
+                                var add = new GtPyexta
+                                {
+                                    BusinessKey = a_proc.BusinessKey,
+                                    EmployeeNumber = a_proc.EmployeeNumber,
+                                    PayPeriod = a_proc.PayPeriod,
+                                    Lopdays = a_proc.Lopdays,
+                                    IsVacationPay = a_proc.VacationDays > 0,
+                                    VacationDays = a_proc.VacationDays,
+                                    VacationPayPercentage = a_proc.VacationPayPercentage,
+                                    VaccationPayDays = a_proc.VaccationPayDays,
+                                    AttendedDays = a_proc.AttendedDays,
+                                    AttendanceFactor = a_proc.AttendanceFactor,
+                                    ActiveStatus = a_proc.ActiveStatus,
+                                    FormId = a_proc.FormId,
+                                    CreatedBy = a_proc.UserID,
+                                    CreatedOn = System.DateTime.Now,
+                                    CreatedTerminal = a_proc.TerminalID
+                                };
+                                db.GtPyexta.Add(add);
+                            }
+                            else
+                            {
+                                _isExistsproc.Lopdays = a_proc.Lopdays;
+                                _isExistsproc.ActiveStatus = a_proc.ActiveStatus;
+                                _isExistsproc.IsVacationPay = a_proc.VacationDays > 0;
+                                _isExistsproc.VacationDays = a_proc.VacationDays;
+                                _isExistsproc.VacationPayPercentage = a_proc.VacationPayPercentage;
+                                _isExistsproc.VaccationPayDays = a_proc.VaccationPayDays;
+                                _isExistsproc.AttendedDays = a_proc.AttendedDays;
+                                _isExistsproc.AttendanceFactor = a_proc.AttendanceFactor;
+                                _isExistsproc.ModifiedBy = a_proc.UserID;
+                                _isExistsproc.ModifiedOn = System.DateTime.Now;
+                                _isExistsproc.ModifiedTerminal = a_proc.TerminalID;
+                            }
+                            await db.SaveChangesAsync();
+                        }
+
+                        dbContext.Commit();
+                        return new DO_ReturnParameter() { Status = true, Message = "Saved Successfully." };
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+        #region Arrear Details
+        public async Task<List<DO_Arreardays>> GetPaidToEmployees(int Businesskey, int Payperiod,int employeeNumber)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexta.Where(x => x.BusinessKey == Businesskey && x.EmployeeNumber==employeeNumber).Select(
+                      x => new DO_Arreardays
+                      {
+                          BusinessKey = x.BusinessKey,
+                          PayPeriod = x.PayPeriod,
+                          EmployeeNumber=x.EmployeeNumber,
+                          Lopdays=x.Lopdays,
+                          PaidPeriod=0,
+                          ArrearDays=0,
+                          ActiveStatus = x.ActiveStatus
+                      }).ToListAsync();
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<List<DO_Arreardays>> GetArreardays(int Businesskey, int Payperiod, int employeeNumber)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexar.Where(x => x.BusinessKey == Businesskey && x.EmployeeNumber == employeeNumber)
+                         .Join(db.GtPyexta,
+                            p => new { p.BusinessKey, p.EmployeeNumber,p.PayPeriod },
+                            e => new { e.BusinessKey, e.EmployeeNumber ,e.PayPeriod},
+                            (p, e) => new { p, e })
+                        .Select(
+                      x => new DO_Arreardays
+                      {
+                          BusinessKey = x.p.BusinessKey,
+                          PayPeriod = x.p.PayPeriod,
+                          EmployeeNumber = x.p.EmployeeNumber,
+                          PaidPeriod=x.p.PaidPeriod,
+                          Lopdays = x.e.Lopdays,
+                          ArrearDays=x.p.ArrearDays,
+                          ActiveStatus = x.p.ActiveStatus
+                      }).ToListAsync();
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<DO_ReturnParameter> InsertOrUpdateArreardays(List<DO_Arreardays> obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        foreach (var a_proc in obj)
+                        {
+                            GtPyexta _isExistsproc = db.GtPyexta.FirstOrDefault(a => a.BusinessKey == a_proc.BusinessKey && a.PayPeriod == a_proc.PayPeriod && a.EmployeeNumber == a_proc.EmployeeNumber);
+                            if (_isExistsproc != null)
+                            {
+                                _isExistsproc.Lopdays = a_proc.ArrearDays;
+                                _isExistsproc.ModifiedBy = a_proc.UserID;
+                                _isExistsproc.ModifiedOn = System.DateTime.Now;
+                                _isExistsproc.ModifiedTerminal = a_proc.TerminalID;
+                            }
+
+                            GtPyexar _isArdaysExists = db.GtPyexar.FirstOrDefault(a => a.BusinessKey == a_proc.BusinessKey && a.PayPeriod == a_proc.PayPeriod && a.EmployeeNumber == a_proc.EmployeeNumber);
+                            if (_isArdaysExists == null)
+                            {
+                                var add = new GtPyexar
+                                {
+                                    BusinessKey = a_proc.BusinessKey,
+                                    EmployeeNumber = a_proc.EmployeeNumber,
+                                    PayPeriod = a_proc.PayPeriod,
+                                    PaidPeriod = a_proc.PaidPeriod,
+                                    ArrearDays= a_proc.ArrearDays,
+                                    ActiveStatus = true,
+                                    FormId = a_proc.FormId,
+                                    CreatedBy = a_proc.UserID,
+                                    CreatedOn = System.DateTime.Now,
+                                    CreatedTerminal = a_proc.TerminalID
+                                };
+                                db.GtPyexar.Add(add);
+                            }
+                            else
+                            {
+                                _isArdaysExists.ArrearDays = a_proc.ArrearDays;
+                                _isArdaysExists.ActiveStatus = true;
+                                _isArdaysExists.ModifiedBy = a_proc.UserID;
+                                _isArdaysExists.ModifiedOn = System.DateTime.Now;
+                                _isArdaysExists.ModifiedTerminal = a_proc.TerminalID;
+                            }
+                            await db.SaveChangesAsync();
+                        }
+
+                        dbContext.Commit();
+                        return new DO_ReturnParameter() { Status = true, Message = "Saved Successfully." };
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+        #endregion Arrear Details
+    }
+}

@@ -1,0 +1,35 @@
+﻿using eSyaPayrollExpat.DO;
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace eSyaPayrollExpat.IF
+{
+   public interface IVariableEntryRepository
+    {
+        #region Salary Advance
+
+        Task<List<DO_EmployeeMaster>> GetEmployeesbyBusinessKey(int Businesskey);
+
+        Task<List<DO_AdvanceSalary>> GetSalariesbyBusinessKeyAndPayPeriod(int Businesskey, int Payperiod);
+
+        Task<DO_ReturnParameter> InsertAdvanceSalary(DO_AdvanceSalary obj);
+
+        Task<DO_ReturnParameter> UpdateAdvanceSalary(DO_AdvanceSalary obj);
+
+        #endregion Salary Advance
+
+        #region Variable Incentive
+
+        Task<List<DO_VariableIncentive>> GetIncentiesbyBusinessKeyAndPayPeriod(int Businesskey, int Payperiod);
+
+        Task<DO_ReturnParameter> InsertOrUpdateVariableIncentive(List<DO_VariableIncentive> obj);
+
+        Task<DO_ReturnParameter> InsertVariableIncentive(DO_VariableIncentive obj);
+
+        Task<DO_ReturnParameter> UpdateVariableIncentive(DO_VariableIncentive obj);
+
+        #endregion Variable Incentive
+    }
+}

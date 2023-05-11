@@ -1,0 +1,204 @@
+﻿using eSyaPayrollExpat.DL.Entities;
+using eSyaPayrollExpat.DO;
+using eSyaPayrollExpat.IF;
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace eSyaPayrollExpat.DL.Repository
+{
+    public class SalaryPaymentRepository : ISalaryPaymentRepository
+    {
+        public async Task<List<DO_BankMaster>> GetPaymentBankMaster(int businessKey)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var bk = db.GtPyexbm
+                        .Where(w => w.BusinessKey == businessKey && w.ActiveStatus)
+                        .Select(x => new DO_BankMaster
+                        {
+                            BankCode = x.BankCode,
+                            BankName = x.BankName,
+                            BankAccountNumber = x.BankAccountNumber,
+                            BranchCode = x.BranchCode,
+                            BranchName = x.BranchName,
+                            BranchAddress = x.BranchAddress,
+                            BankCharges = x.BankCharges
+                        }).ToListAsync();
+                    return await bk;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<List<DO_Currency>> GetBankCurrency(int businessKey, string bankCode)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var bk = db.GtPyexbc
+                        .Where(w => w.BusinessKey == businessKey && w.BankCode == bankCode && w.ActiveStatus)
+                        .Select(x => new DO_Currency
+                        {
+                            CurrencyCode = x.BankCurrency
+                        }).ToListAsync();
+                    return await bk;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<List<DO_SalaryBankDetail>> GetSalaryDetailForPayment(int businessKey, string bankCode, string currency, string bankRemittance)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var bk = db.GtPyexbm.Where(w => w.BusinessKey == businessKey && w.BankCode == bankCode).FirstOrDefault();
+                    decimal bankCharge = 0;
+                    if (bk != null)
+                        bankCharge = bk.BankCharges;
+
+                    var ds = db.GtPyexpb
+                        .Join(db.GtPyexem,
+                            p => new { p.BusinessKey, p.EmployeeNumber },
+                            e => new { e.BusinessKey, e.EmployeeNumber },
+                            (p, e) => new { p, e })
+                        .Join(db.GtPyexsi,
+                            pe => new { pe.p.BusinessKey, pe.p.EmployeeNumber },
+                             s => new { s.BusinessKey, s.EmployeeNumber },
+                            (pe, s) => new { pe, s })
+                        .Where(w => w.pe.p.BusinessKey == businessKey && w.pe.p.BankCurrency == currency
+                                    && w.pe.p.BankRemittance == bankRemittance && w.pe.p.OrgBankCode == null)
+                        .Select(
+                            x => new DO_SalaryBankDetail
+                            {
+                                EmployeeNumber = x.pe.e.EmployeeNumber,
+                                EmployeeName = x.pe.e.EmployeeName,
+                                PayPeriod = x.pe.p.PayPeriod,
+                                SerialNumber = x.pe.p.SerialNumber,
+                                SalaryCurrencyAmount = x.pe.p.SalaryCurrencyAmount,
+                                LocalCurrencyAmount = x.pe.p.LocalCurrencyAmount,
+                                BankCharges = x.s.IsBankChargeApplicable ? bankCharge : 0,
+                                IsBankChargeApplicable = x.s.IsBankChargeApplicable,
+                                AccountHolderName = x.pe.p.AccountHolderName ?? "",
+                                BankCode = x.pe.p.BankCode ?? "",
+                                BankName = x.pe.p.BankName ?? "",
+                                AccountNumber = x.pe.p.AccountNumber ?? "",
+                                BranchCode = x.pe.p.BranchCode ?? "",
+                                BranchName = x.pe.p.BranchName ?? "",
+                                IFSCCode = x.pe.p.Ifsccode ?? "",
+                                SWIFTCode = x.pe.p.Swiftcode ?? "",
+                                IBAN = x.pe.p.Iban ?? "",
+                                CorrespondingBankName = x.pe.p.CorrespondingBankName ?? "",
+                                CorrespondingBankAddress = x.pe.p.CorrespondingBankAddress ?? "",
+                                CorrespondingBankAccountNumber = x.pe.p.CorrespondingBankAccountNumber ?? "",
+                            }).ToListAsync();
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<DO_ReturnParameter> UpdateSalaryPaymentBank(List<DO_SalaryBankDetail> obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        foreach (var s in obj)
+                        {
+                            var pb = await db.GtPyexpb.Where(w => w.BusinessKey == s.BusinessKey && w.EmployeeNumber == s.EmployeeNumber
+                                        && w.PayPeriod == s.PayPeriod && w.SerialNumber == s.SerialNumber).FirstOrDefaultAsync();
+                            if (pb != null)
+                            {
+                                pb.OrgBankCode = s.OrgBankCode;
+                                pb.OrgBankDate = s.OrgBankDate;
+                                pb.BankCharges = s.BankCharges;
+                            }
+                        }
+                        await db.SaveChangesAsync();
+                        dbContext.Commit();
+
+                        return new DO_ReturnParameter { Status = true };
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+
+        public async Task<List<DO_SalaryBankDetail>> GetBankStatement(int businessKey, string orgBankCode, DateTime bankDate)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexpb
+                        .Join(db.GtPyexem,
+                            p => new { p.BusinessKey, p.EmployeeNumber },
+                            e => new { e.BusinessKey, e.EmployeeNumber },
+                            (p, e) => new { p, e })
+                        .Where(w => w.p.BusinessKey == businessKey && w.p.OrgBankCode == orgBankCode
+                                    && w.p.OrgBankDate != null && ((DateTime)w.p.OrgBankDate).Date == bankDate.Date)
+                        .Select(
+                            x => new DO_SalaryBankDetail
+                            {
+                                EmployeeNumber = x.e.EmployeeNumber,
+                                EmployeeName = x.e.EmployeeName,
+                                PayPeriod = x.p.PayPeriod,
+                                SerialNumber = x.p.SerialNumber,
+                                SalaryCurrencyAmount = x.p.SalaryCurrencyAmount,
+                                LocalCurrencyAmount = x.p.LocalCurrencyAmount,
+                                BankCharges = x.p.BankCharges,
+                                AccountHolderName = x.p.AccountHolderName,
+                                BankCode = x.p.BankCode,
+                                BankName = x.p.BankName,
+                                AccountNumber = x.p.AccountNumber,
+                                BranchCode = x.p.BranchCode,
+                                BranchName = x.p.BranchName,
+                                BankAddress = x.p.BankAddress,
+                                IFSCCode = x.p.Ifsccode,
+                                BeneficiaryAddress = x.p.BeneficiaryAddress,
+                                SWIFTCode = x.p.Swiftcode,
+                                IBAN = x.p.Iban,
+                                CorrespondingBankName = x.p.CorrespondingBankName,
+                                CorrespondingBankAddress = x.p.CorrespondingBankAddress,
+                                CorrespondingBankAccountNumber = x.p.CorrespondingBankAccountNumber,
+                            }).ToListAsync();
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+    }
+}

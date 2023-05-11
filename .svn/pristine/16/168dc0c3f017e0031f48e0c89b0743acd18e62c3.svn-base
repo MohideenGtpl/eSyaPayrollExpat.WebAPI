@@ -1,0 +1,80 @@
+﻿using eSyaPayrollExpat.DL.Entities;
+using eSyaPayrollExpat.DO;
+using eSyaPayrollExpat.IF;
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace eSyaPayrollExpat.DL.Repository
+{
+    public class PayrollProcessRepository
+    {
+        public async Task<List<DO_PayrollProcess>> GetEmployeeForPayrollProcess(int businessKey, int payPeriod)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexta
+                        .Join(db.GtPyexem,
+                            a => new { a.BusinessKey, a.EmployeeNumber },
+                            e => new { e.BusinessKey, e.EmployeeNumber },
+                            (a, e) => new { a, e })
+                         .Join(db.GtPyexsi,
+                            ae => new { ae.a.BusinessKey, ae.a.EmployeeNumber },
+                            s => new { s.BusinessKey, s.EmployeeNumber },
+                            (ae, s) => new { ae, s })
+                        .Where(w => w.ae.a.BusinessKey == businessKey && w.ae.a.PayPeriod == payPeriod)
+                        .Select(
+                            x => new DO_PayrollProcess
+                            {
+                                EmployeeNumber = x.ae.e.EmployeeNumber,
+                                EmployeeName = x.ae.e.EmployeeName,
+                                SalaryAmount = x.s.SalaryAmount,
+                                SalaryCurrency = x.s.SalaryCurrency,
+                                AttendanceFactor = x.ae.a.AttendanceFactor,
+                                IsIncentiveApplicable = x.s.IsIncentiveApplicable,
+                                IsBankChargeApplicable = x.s.IsBankChargeApplicable,
+                                NHIFAmount = x.s.Nhifamount,
+                                NSSFAmount = x.s.Nssfamount,
+                            }).ToListAsync();
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<List<DO_PayrollProcess>> GetPayrollProcessedEmployee(int businessKey, int payPeriod)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexps
+                        .Join(db.GtPyexem,
+                            p => new { p.BusinessKey, p.EmployeeNumber },
+                            e => new { e.BusinessKey, e.EmployeeNumber },
+                            (p, e) => new { p, e })
+                        .Where(w => w.p.BusinessKey == businessKey && w.p.PayPeriod == payPeriod)
+                        .Select(
+                            x => new DO_PayrollProcess
+                            {
+                                EmployeeNumber = x.e.EmployeeNumber,
+                                EmployeeName = x.e.EmployeeName
+                            }).ToListAsync();
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+    }
+}

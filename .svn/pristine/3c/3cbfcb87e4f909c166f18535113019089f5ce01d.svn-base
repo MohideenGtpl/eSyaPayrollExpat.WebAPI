@@ -1,0 +1,256 @@
+﻿using eSyaPayrollExpat.DL.Entities;
+using eSyaPayrollExpat.DO;
+using eSyaPayrollExpat.IF;
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace eSyaPayrollExpat.DL.Repository
+{
+    public class PayrollProcessRepository : IPayrollProcessRepository
+    {
+        public async Task<List<DO_Currency>> GetCurrencyExchangeRate()
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtEccuco
+                        .GroupJoin(db.GtIfcrer,
+                        c => c.CurrencyCode,
+                        e => e.CurrencyCode,
+                        (c,e) => new { c, e = e.FirstOrDefault() }).DefaultIfEmpty()
+                        .Where(w => w.c.ActiveStatus)
+                        .Select(
+                            x => new DO_Currency
+                            {
+                                CurrencyCode = x.c.CurrencyCode,
+                                ExchangeRate = x.e != null ? (decimal) x.e.StandardRate : 1
+                            }).ToListAsync();
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<List<DO_PayrollProcess>> GetEmployeeForPayrollProcess(int businessKey, int payPeriod)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ps = await db.GtPyexta
+                        .Join(db.GtPyexem,
+                            a => new { a.BusinessKey, a.EmployeeNumber },
+                            e => new { e.BusinessKey, e.EmployeeNumber },
+                            (a, e) => new { a, e })
+                         .Join(db.GtPyexsi,
+                            ae => new { ae.a.BusinessKey, ae.a.EmployeeNumber },
+                            s => new { s.BusinessKey, s.EmployeeNumber },
+                            (ae, s) => new { ae, s })
+                       .GroupJoin(db.GtPyexva.Where(w => w.ActiveStatus),
+                            aes => new { aes.ae.a.BusinessKey, aes.ae.a.EmployeeNumber, aes.ae.a.PayPeriod },
+                            v => new { v.BusinessKey, v.EmployeeNumber, v.PayPeriod },
+                            (aes, v) => new { aes, v = v.FirstOrDefault() }).DefaultIfEmpty()
+                        .Where(w => w.aes.ae.a.BusinessKey == businessKey 
+                                    && w.aes.ae.a.PayPeriod == payPeriod
+                                    && !db.GtPyexps.Any(s => s.BusinessKey == w.aes.ae.a.BusinessKey 
+                                            && s.PayPeriod == w.aes.ae.a.PayPeriod && s.EmployeeNumber == w.aes.ae.a.EmployeeNumber))
+                        .Select(
+                            x => new DO_PayrollProcess
+                            {
+                                EmployeeNumber =  x.aes.ae.e.EmployeeNumber,
+                                EmployeeName = x.aes.ae.e.Title + " " + x.aes.ae.e.EmployeeName,
+                                SalaryAmount = x.aes.s.SalaryAmount,
+                                SalaryCurrency = x.aes.s.SalaryCurrency,
+                                AttendanceFactor = x.aes.ae.a.AttendanceFactor,
+                                IsIncentiveApplicable = x.aes.s.IsIncentiveApplicable,
+                                IsBankChargeApplicable = x.aes.s.IsBankChargeApplicable,
+                                IsVacationPay = x.aes.ae.a.IsVacationPay,
+                                AdvanceAmount = x.v != null ? x.v.SalaryAdvance : 0,
+                                NHIFAmount = x.aes.s.Nhifamount,
+                                NSSFAmount = x.aes.s.Nssfamount,
+                                PayrollStatus = "S"
+                            }).ToListAsync();
+
+                    var vi = db.GtPyexvi.Where(w => w.BusinessKey == businessKey && w.PayPeriod == payPeriod);
+                    foreach(var i in vi)
+                    {
+                        var p = ps.Where(w => w.EmployeeNumber == i.EmployeeNumber).FirstOrDefault();
+                        if(p != null)
+                        {
+                            p.VariableIncentiveAmount = i.VariableIncentiveAmount;
+                        }
+                    }
+
+                    return ps;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<List<DO_PayrollProcess>> GetPayrollProcessedEmployee(int businessKey, int payPeriod)
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexps
+                        .Join(db.GtPyexem,
+                            p => new { p.BusinessKey, p.EmployeeNumber },
+                            e => new { e.BusinessKey, e.EmployeeNumber },
+                            (p, e) => new { p, e })
+                        .Where(w => w.p.BusinessKey == businessKey && w.p.PayPeriod == payPeriod)
+                        .Select(
+                            x => new DO_PayrollProcess
+                            {
+                                EmployeeNumber = x.e.EmployeeNumber,
+                                EmployeeName = x.e.EmployeeName,
+                                SalaryAmount = x.p.SalaryAmount,
+                                SalaryCurrency = x.p.SalaryCurrency,
+                                AttendanceFactor = x.p.AttendanceFactor,
+                                IsVacationPay = x.p.IsVacationPay,
+                                VariableIncentiveAmount = x.p.VariableIncentiveAmount,
+                                AdvanceAmount = x.p.AdvanceAmount,
+                                NHIFAmount = x.p.Nhifamount,
+                                NSSFAmount = x.p.Nssfamount,
+                                PayrollStatus = "P"
+                            }).ToListAsync();
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<DO_ReturnParameter> InsertIntoPayrollProcess(List<DO_PayrollProcess> obj)
+        {
+            using (var db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+                        foreach (var s in obj)
+                        {
+                            GtPyexps ps = new GtPyexps
+                            {
+                                BusinessKey = s.BusinessKey,
+                                EmployeeNumber = s.EmployeeNumber,
+                                PayPeriod = s.PayPeriod,
+                                ProcessedDate = System.DateTime.Now,
+                                SalaryCurrency = s.SalaryCurrency,
+                                SalaryAmount = s.SalaryAmount,
+                                AttendanceFactor = s.AttendanceFactor,
+                                ProcessedAmount = s.ProcessedAmount,
+                                ExchangeRate = s.ExchangeRate,
+                                AmountInLocalCurrency = s.AmountInLocalCurrency,
+                                VariableIncentiveAmount = s.VariableIncentiveAmount,
+                                AdvanceAmount = s.AdvanceAmount,
+                                Bcdebit = false,
+                                BankCharges = 0,
+                                NetSalaryAmount = s.NetSalaryAmount,
+                                Nhifamount = s.NHIFAmount,
+                                Nssfamount = s.NSSFAmount,
+                                ActiveStatus = true,
+                                FormId = s.FormId,
+                                CreatedBy = s.UserID,
+                                CreatedOn = System.DateTime.Now,
+                                CreatedTerminal = s.TerminalID
+                            };
+                            await db.GtPyexps.AddAsync(ps);
+
+                            var sb = db.GtPyexsb.Where(w => w.BusinessKey == s.BusinessKey && w.EmployeeNumber == s.EmployeeNumber);
+                            var i = 0;
+                            var totalCount = sb.Count();
+                            var totalSalaryPerct = 0;
+                            decimal reminingSalaryAmount = s.NetSalaryAmount;
+                            foreach (var b in sb)
+                            {
+                                var salaryPerct = ((b.PaymentAmountBySalaryCurrency * 100) / s.SalaryAmount);
+                                var salaryAmount = s.NetSalaryAmount * salaryPerct / 100;
+                                if (++i == totalCount && totalCount > 1)
+                                {
+                                    salaryPerct = 100 - totalSalaryPerct;
+                                    salaryAmount = reminingSalaryAmount;
+                                }
+                                reminingSalaryAmount -= salaryAmount;
+                                if (reminingSalaryAmount < 0)
+                                    break;
+
+                                GtPyexpb pb = new GtPyexpb();
+                                pb.BusinessKey = s.BusinessKey;
+                                pb.EmployeeNumber = s.EmployeeNumber;
+                                pb.PayPeriod = s.PayPeriod;
+                                pb.SerialNumber = i;
+                                pb.BankRemittance = b.TransferTo;
+                                pb.BankCurrency = b.PaymentByCurrency;
+                                pb.PayableAmount = salaryAmount;
+                                if (pb.BankRemittance == "B")
+                                {
+                                    var bankDetail = await db.GtPyexbd.Where(w => w.BusinessKey == s.BusinessKey && w.EmployeeNumber == s.EmployeeNumber
+                                                        && w.BankCurrency == pb.BankCurrency).FirstOrDefaultAsync();
+                                    if (bankDetail != null)
+                                    {
+                                        pb.AccountHolderName = bankDetail.AccountHolderName;
+                                        pb.AccountNumber = bankDetail.AccountNumber;
+                                        pb.BankCode = bankDetail.BankCode;
+                                        pb.BankName = bankDetail.BankName;
+                                        pb.BranchCode = bankDetail.BranchCode;
+                                        pb.BranchName = bankDetail.BranchName;
+                                        pb.BankAddress = bankDetail.BankAddress;
+                                        pb.BeneficiaryAddress = bankDetail.BeneficiaryAddress;
+                                        pb.Ifsccode = bankDetail.Ifsccode;
+                                        pb.Swiftcode = bankDetail.Swiftcode;
+                                        pb.Iban = bankDetail.Iban;
+                                        pb.CorrespondingBankName = bankDetail.CorrespondingBankName;
+                                        pb.CorrespondingBankAddress = bankDetail.CorrespondingBankAddress;
+                                        pb.CorrespondingBankAccountNumber = bankDetail.CorrespondingBankAccountNumber;
+                                    }
+                                    else
+                                    {
+                                        return new DO_ReturnParameter { Status = false, Message = "Bank detail is not provided for employee " + s.EmployeeName };
+                                    }
+                                }
+                                pb.ActiveStatus = true;
+                                pb.FormId = s.FormId;
+                                pb.CreatedBy = s.UserID;
+                                pb.CreatedOn = System.DateTime.Now;
+                                pb.CreatedTerminal = s.TerminalID;
+
+                                await db.GtPyexpb.AddAsync(pb);
+                            }
+                        }
+
+                        await db.SaveChangesAsync();
+                        dbContext.Commit();
+
+                        return new DO_ReturnParameter { Status = true };
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+
+    }
+}

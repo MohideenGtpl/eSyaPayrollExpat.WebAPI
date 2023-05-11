@@ -1,0 +1,159 @@
+﻿using eSyaPayrollExpat.DL.Entities;
+using eSyaPayrollExpat.DO;
+using eSyaPayrollExpat.IF;
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace eSyaPayrollExpat.DL.Repository
+{
+   public class AttendanceProcessRepository: IAttendanceProcessRepository
+    {
+        public async Task<List<DO_EmployeeMaster>> GetActiveEmployees()
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexem.Select(
+                      x => new DO_EmployeeMaster
+                      {
+                         EmployeeNumber=x.EmployeeNumber,
+                         EmployeeName=x.EmployeeName
+                      }).ToListAsync();
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<List<DO_AttendanceProcess>> GetAllAttendanceProcess()
+        {
+            try
+            {
+                using (var db = new eSyaEnterprise())
+                {
+                    var ds = db.GtPyexta.Select(
+                      x => new DO_AttendanceProcess
+                      {
+                          BusinessKey=x.BusinessKey,
+                          EmployeeNumber=x.EmployeeNumber,
+                          PayPeriod=x.PayPeriod,
+                          Lopdays=x.Lopdays,
+                          AttendedDays=x.AttendedDays,
+                          AttendanceFactor=x.AttendanceFactor,
+                          ActiveStatus=x.ActiveStatus
+
+                      }).ToListAsync();
+                    return await ds;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public async Task<DO_ReturnParameter> InsertAttendanceProcess(DO_AttendanceProcess obj)
+        {
+            using (eSyaEnterprise db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+                    try
+                    {
+
+                        GtPyexta is_attproExists = db.GtPyexta.FirstOrDefault(a => a.BusinessKey == obj.BusinessKey && a.PayPeriod == obj.PayPeriod && a.EmployeeNumber==obj.EmployeeNumber);
+                        if (is_attproExists == null)
+                        {
+                            var attproc = new GtPyexta
+                            {
+                                BusinessKey = obj.BusinessKey,
+                                PayPeriod = obj.PayPeriod,
+                                EmployeeNumber=obj.EmployeeNumber,
+                                Lopdays=obj.Lopdays,
+                                AttendedDays=obj.AttendedDays,
+                                AttendanceFactor=obj.AttendanceFactor,
+                                ActiveStatus = obj.ActiveStatus,
+                                FormId = obj.FormId,
+                                CreatedBy = obj.UserID,
+                                CreatedOn = DateTime.Now,
+                                CreatedTerminal = obj.TerminalID
+                            };
+                            db.GtPyexta.Add(attproc);
+                            await db.SaveChangesAsync();
+                            dbContext.Commit();
+                            return new DO_ReturnParameter() { Status = true, Message = "Attandance Process Created Successfully." };
+                        }
+                        else
+                        {
+                            return new DO_ReturnParameter() { Status = false, Message = "Attandance Process is already Exists to Selected Employee in this Business Key." };
+                        }
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+
+        public async Task<DO_ReturnParameter> UpdateAttendanceProcess(DO_AttendanceProcess obj)
+        {
+            using (eSyaEnterprise db = new eSyaEnterprise())
+            {
+                using (var dbContext = db.Database.BeginTransaction())
+                {
+
+                    try
+                    {
+                        var att_process = db.GtPyexta.FirstOrDefault(a => a.BusinessKey == obj.BusinessKey && a.PayPeriod == obj.PayPeriod && a.EmployeeNumber == obj.EmployeeNumber);
+                        if (att_process != null)
+                        {
+                            att_process.BusinessKey = obj.BusinessKey;
+                            att_process.PayPeriod = obj.PayPeriod;
+                            att_process.EmployeeNumber = obj.EmployeeNumber;
+                            att_process.Lopdays = obj.Lopdays;
+                            att_process.AttendedDays = obj.AttendedDays;
+                            att_process.AttendanceFactor = obj.AttendanceFactor;
+                            att_process.ActiveStatus = obj.ActiveStatus;
+                            att_process.ModifiedBy = obj.UserID;
+                            att_process.ModifiedOn = DateTime.Now;
+                            att_process.ModifiedTerminal = obj.TerminalID;
+                            await db.SaveChangesAsync();
+                            dbContext.Commit();
+                            return new DO_ReturnParameter() { Status = true, Message = "Attendance Process Updated Successfully." };
+                        }
+                        else
+                        {
+                            return new DO_ReturnParameter() { Status = false, Message = "Couldn't find Attendance Process." };
+                        }
+
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        dbContext.Rollback();
+                        throw new Exception(CommonMethod.GetValidationMessageFromException(ex));
+                    }
+                    catch (Exception ex)
+                    {
+                        dbContext.Rollback();
+                        throw ex;
+                    }
+                }
+            }
+        }
+    }
+}

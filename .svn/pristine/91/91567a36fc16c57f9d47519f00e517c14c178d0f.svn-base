@@ -1,0 +1,18 @@
+﻿using eSyaPayrollExpat.DO;
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace eSyaPayrollExpat.IF
+{
+   public interface IAttendanceProcessRepository
+    {
+        Task<List<DO_PayPeriod>> GetPayPeriodbyBusinessKey(int Businesskey);
+
+        Task<List<DO_AttendanceProcess>> GetAttendanceProcessbyBusinessKey(int Businesskey,int Payperiod);
+
+        Task<DO_ReturnParameter> InsertOrUpdateAttendanceProcess(List<DO_AttendanceProcess> obj);
+
+    }
+}

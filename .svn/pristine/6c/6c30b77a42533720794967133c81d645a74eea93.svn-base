@@ -1,0 +1,119 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using eSyaPayrollExpat.DO;
+using eSyaPayrollExpat.IF;
+namespace eSyaPayrollExpat.WebAPI.Controllers
+{
+    [Route("api/[controller]/[action]")]
+    [ApiController]
+    public class VariableEntryController : ControllerBase
+    {
+        private readonly IVariableEntryRepository _VariableEntryRepository;
+        public VariableEntryController(IVariableEntryRepository VariableEntryRepository)
+        {
+            _VariableEntryRepository = VariableEntryRepository;
+        }
+
+        #region Salary Advance
+
+        /// <summary>
+        /// Getting  Employees by Business Key for dropdown List.
+        /// UI Reffered - Advance Salary
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetEmployeesbyBusinessKey(int Businesskey)
+        {
+            var emps = await _VariableEntryRepository.GetEmployeesbyBusinessKey(Businesskey);
+            return Ok(emps);
+        }
+
+        /// <summary>
+        /// Getting Advance Salary List by Business Key and Pay Period.
+        /// UI Reffered - Advance Salary Grid
+        /// UI-Param - Businesskey
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetSalariesbyBusinessKeyAndPayPeriod(int Businesskey, int Payperiod)
+        {
+            var ad_sal = await _VariableEntryRepository.GetSalariesbyBusinessKeyAndPayPeriod(Businesskey, Payperiod);
+            return Ok(ad_sal);
+        }
+        /// <summary>
+        /// Insert Advance Salary.
+        /// UI Reffered - Advance Salary
+        /// </summary>
+        [HttpPost]
+        public async Task<IActionResult> InsertAdvanceSalary(DO_AdvanceSalary obj)
+        {
+            var msg = await _VariableEntryRepository.InsertAdvanceSalary(obj);
+            return Ok(msg);
+
+        }
+        /// <summary>
+        /// Update Advance Salary.
+        /// UI Reffered - Advance Salary
+        /// </summary>
+        [HttpPost]
+        public async Task<IActionResult> UpdateAdvanceSalary(DO_AdvanceSalary obj)
+        {
+            var msg = await _VariableEntryRepository.UpdateAdvanceSalary(obj);
+            return Ok(msg);
+
+        }
+        #endregion Salary Advance
+
+        #region Variable Incentive
+
+        /// <summary>
+        /// Getting Variable Incentive List by Business Key and Pay Period.
+        /// UI Reffered - Variable Incentive Grid
+        /// UI-Param - Businesskey
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetIncentiesbyBusinessKeyAndPayPeriod(int Businesskey, int Payperiod)
+        {
+            var incenties = await _VariableEntryRepository.GetIncentiesbyBusinessKeyAndPayPeriod(Businesskey, Payperiod);
+            return Ok(incenties);
+        }
+
+        /// <summary>
+        /// Insert Or Update Variable Incentive.
+        /// UI Reffered - Variable Incentive
+        /// </summary>
+        [HttpPost]
+        public async Task<IActionResult> InsertOrUpdateVariableIncentive(List<DO_VariableIncentive> obj)
+        {
+            var msg = await _VariableEntryRepository.InsertOrUpdateVariableIncentive(obj);
+            return Ok(msg);
+
+        }
+
+        /// <summary>
+        /// Insert Variable Incentive.
+        /// UI Reffered - Variable Incentive
+        /// </summary>
+        [HttpPost]
+        public async Task<IActionResult> InsertVariableIncentive(DO_VariableIncentive obj)
+        {
+            var msg = await _VariableEntryRepository.InsertVariableIncentive(obj);
+            return Ok(msg);
+
+        }
+        /// <summary>
+        /// Update Variable Incentive.
+        /// UI Reffered - Variable Incentive
+        /// </summary>
+        [HttpPost]
+        public async Task<IActionResult> UpdateVariableIncentive(DO_VariableIncentive obj)
+        {
+            var msg = await _VariableEntryRepository.UpdateVariableIncentive(obj);
+            return Ok(msg);
+
+        }
+        #endregion Variable Incentive
+    }
+}

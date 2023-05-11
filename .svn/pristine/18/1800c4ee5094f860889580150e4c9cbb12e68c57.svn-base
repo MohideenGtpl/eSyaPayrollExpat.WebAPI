@@ -1,0 +1,19 @@
+﻿using eSyaPayrollExpat.DO;
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace eSyaPayrollExpat.IF
+{
+   public interface IVariableEntryRepository
+    {
+        Task<List<DO_EmployeeMaster>> GetCboEmployees();
+
+        Task<List<DO_AdvanceSalary>> GetAdvanceSalarybyBusinessKey(int Businesskey);
+
+        Task<DO_ReturnParameter> InsertAdvanceSalary(DO_AdvanceSalary obj);
+
+        Task<DO_ReturnParameter> UpdateAdvanceSalary(DO_AdvanceSalary obj);
+    }
+}

@@ -1,0 +1,23 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace eSyaPayrollExpat.DO
+{
+   public class DO_AttendanceProcess
+    {
+        public int BusinessKey { get; set; }
+        public int EmployeeNumber { get; set; }
+        public int PayPeriod { get; set; }
+        public decimal Lopdays { get; set; }
+        public decimal AttendedDays { get; set; }
+        public decimal AttendanceFactor { get; set; }
+        public bool IsVacationPay { get; set; }
+        public bool ActiveStatus { get; set; }
+        public int Workingdays { get; set; }
+        public string EmployeeName { get; set; }
+        public string FormId { get; set; }
+        public int UserID { get; set; }
+        public string TerminalID { get; set; }
+    }
+}
